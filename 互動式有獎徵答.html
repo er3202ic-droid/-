@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>互動式有獎徵答 - 影音升級簡報版</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
+            min-height: 100vh; 
+            margin: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            padding: 20px; 
+            box-sizing: border-box;
+        }
+        
+        .container { 
+            width: 100%; 
+            max-width: 650px; 
+        }
+
+        /* 簡報卡片造型與驚喜進場動畫 */
+        .question-card { 
+            background: white; 
+            border-radius: 16px; 
+            padding: 30px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15); 
+            text-align: center;
+            animation: popIn 0.5s cubic-bezier(0.26, 0.53, 0.74, 1.48); 
+        }
+
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.9) translateY(30px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* 圖片樣式 */
+        .question-card img { 
+            width: 100%; 
+            max-height: 280px; 
+            object-fit: cover; 
+            border-radius: 12px; 
+            margin-bottom: 20px; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        /* YouTube 與 MP4 影片 16:9 比例容器 */
+        .media-container {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%; /* 16:9 比例 */
+            height: 0;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background: #000;
+        }
+        .media-container iframe, .media-container video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .question-title { 
+            font-size: 1.4em; 
+            font-weight: bold; 
+            color: #333; 
+            margin-bottom: 20px; 
+            text-align: left;
+        }
+
+        .options { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+        }
+
+        .option-btn { 
+            padding: 15px 20px; 
+            border: 2px solid #e0e0e0; 
+            border-radius: 10px; 
+            background: white; 
+            cursor: pointer; 
+            font-size: 1.1em; 
+            text-align: left; 
+            transition: all 0.2s ease; 
+            font-weight: 500;
+        }
+
+        .option-btn:hover:not(.disabled) { 
+            border-color: #3f51b5; 
+            background: #e8eaf6; 
+            transform: translateX(5px); 
+        }
+        
+        /* 答題狀態樣式（紅綠燈） */
+        .correct { background-color: #4CAF50 !important; color: white; border-color: #4CAF50 !important; }
+        .wrong { background-color: #f44336 !important; color: white; border-color: #f44336 !important; }
+        .disabled { pointer-events: none; }
+
+        /* 「下一題」按鈕 */
+        .next-btn {
+            margin-top: 25px;
+            padding: 12px 30px;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: white;
+            background: #3f51b5;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            display: none; /* 預設隱藏，答題後出現 */
+            box-shadow: 0 4px 10px rgba(63, 81, 181, 0.3);
+            transition: transform 0.2s, background 0.2s;
+            float: right;
+        }
+        .next-btn:hover { background: #303f9f; transform: scale(1.05); }
+
+        /* 角落進度條 */
+        #progress-tracker { 
+            position: fixed; 
+            bottom: 25px; 
+            right: 25px; 
+            background: #222; 
+            color: white; 
+            padding: 10px 20px; 
+            border-radius: 30px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
+            font-weight: bold; 
+            font-size: 0.95em;
+            z-index: 1000; 
+        }
+        
+        /* 結算區塊 */
+        #result-section { 
+            display: none; 
+            background: white; 
+            padding: 40px 30px; 
+            border-radius: 16px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            text-align: center;
+            animation: popIn 0.5s ease;
+        }
+        #result-section h2 { margin-top: 0; color: #3f51b5; font-size: 2.2em; }
+        .reward-box { 
+            background: #fff8e1; 
+            border: 2px dashed #ffc107; 
+            padding: 20px; 
+            border-radius: 12px; 
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="quiz-container">
+        <!-- 題目簡報卡片會動態生成在這裡 -->
+    </div>
+
+    <!-- 結算畫面 -->
+    <div class="container" id="result-section">
+        <h2>🎉 測驗結束！</h2>
+        <p id="score-text" style="font-size: 1.4em; color: #555;"></p>
+        <div class="reward-box">
+            <div style="font-size: 1.1em; color: #795548; margin-bottom: 5px;">恭喜您獲得獎金</div>
+            <div id="reward-text" style="font-size: 2.5em; font-weight: bold; color: #d32f2f;"></div>
+        </div>
+    </div>
+
+    <div id="progress-tracker">目前進度: 1 / 10 題</div>
+
+<script>
+    // 10 題題目資料：可以自由填入 圖片網址、YouTube 網址、或是 MP4 網址！
+    const quizData = [
+        { id: 1, media: "https://media.vogue.com.tw/photos/67d155922845fa64c3ee862f/master/w_1600,c_limit/WTangerines_Unit_s#1-26_A-05435.jpg", question: "請問苦境甘來中愛純的母親演員名字叫？", options: ["廉惠蘭", "廉惠英", "連體嬰", "廉素蘭"], answerIndex: 0 },
+        { id: 2, media: "https://i.ytimg.com/vi/fRGRxss7cZg/hqdefault.jpg", question: "背著善宰跑中善宰唱的歌曲『陣雨』第一句的歌詞應該為何？", options: ["(A) 你初次來到我身邊的那天", "(B) 期盼著不會就此停止", "(C) 日夜思念著你的我", "(D) 我知道故事不會太曲折"], answerIndex: 1 },
+        { id: 3, media: "https://lh3.googleusercontent.com/d/1hyVj0iBHRmPeacnS5cYg6grZtb693mFW", question: "這是之前你跟蔡瑋鴻討論你的限動很居家後面讓蔡瑋鴻想到新企劃 想問他那時想到的新企劃違和（不能現在點開翻舊紀錄！）", options: ["雙北租屋開箱", "雙北租屋大比拼", "雙北真實生活開箱", "來去你家吃一碗番外篇"], answerIndex: 1 },
+        { id: 4, media: "https://lh3.googleusercontent.com/d/1po_6FsQ2-n6nBdtACgNRb9AN77Dc9Owo", question: "請問這次來參訪你家的人中只有一個line頭貼不釋放自己的臉 請猜出是誰", options: ["Jeremy", "jason", "vicky", "sally","bella"], answerIndex: 2 },
+        { id: 5, media:  "https://lh3.googleusercontent.com/d/1po_6FsQ2-n6nBdtACgNRb9AN77Dc9Owo", question: "請問這次參訪你家的人中昨天誰沒po限動？", options: ["jeremy", "sally", "vicky", "bella"], answerIndex: 0 },
+        { id: 6, media: "", question: "現場人臨時出題答對才給分，沒答對就自己憑運氣猜", options: ["1", "2", "3", "4"], answerIndex: 3 },
+        { id: 7, media: "https://lh3.googleusercontent.com/d/1po_6FsQ2-n6nBdtACgNRb9AN77Dc9Owo", question: "以下哪個選項是假的冷知識？", options: ["人睡覺比坐著看電視所消耗的卡路里還多", "沒有一張紙可對摺超過7次", "很多人每朝起來都喝一杯咖啡提神，但其實一個蘋果比一杯咖啡還有效", "貓只能發出10個音"], answerIndex: 3 },
+        { id: 8, media: "https://lh3.googleusercontent.com/d/1ZtX3mqvIyfuCMYW_2CnP2eqihxOHJhwm", question: "蔡瑋鴻此時最想做的事情是啥", options: ["出國", "離職", "買水晶", "學薩克斯風"], answerIndex: 0 },
+        { id: 9, media: "", question: "現場人臨時出題答對才給分，沒答對就自己憑運氣猜", options: ["1", "2", "3", "4"], answerIndex: 2 },
+        { id: 10, media: "https://lh3.googleusercontent.com/d/1HashPj6K2LGPJD4D3BFY2-fnGDpv-9Ij", question: "今日喬遷禮你覺得會是什麼？", options: ["水晶", "拼圖", "餐飲招待卷", "ubereat"], answerIndex: 3 }
+    ];
+
+    let currentQuestionIndex = 0; 
+    let correctCount = 0;         
+
+    const quizContainer = document.getElementById('quiz-container');
+    const progressTracker = document.getElementById('progress-tracker');
+
+    // 顯示當前題目：動態生成對應的 圖片、YouTube 或 MP4 播放器
+    function showQuestion(index) {
+        quizContainer.innerHTML = '';
+        const q = quizData[index];
+        const card = document.createElement('div');
+        card.className = 'question-card';
+
+        // 智慧判斷媒體類型
+        let mediaHtml = '';
+        const url = q.media;
+
+        if (url.includes('youtube.com') || url.includes('youtu.be')) {
+            let videoId = '';
+            if (url.includes('v=')) videoId = url.split('v=')[1].split('&')[0];
+            else if (url.includes('youtu.be/')) videoId = url.split('youtu.be/')[1].split('?')[0];
+            
+            mediaHtml = `
+                <div class="media-container">
+                    <iframe src="https://www.youtube.com/embed/${videoId}?rel=0" allowfullscreen></iframe>
+                </div>`;
+        } else if (url.endsWith('.mp4')) {
+            mediaHtml = `
+                <div class="media-container">
+                    <video src="${url}" controls></video>
+                </div>`;
+        } else {
+            mediaHtml = `<img src="${url}" alt="題目圖片">`;
+        }
+
+        let optionsHtml = q.options.map((opt, optIndex) => 
+            `<button class="option-btn" onclick="checkAnswer(${index}, ${optIndex}, this)">${opt}</button>`
+        ).join('');
+
+        card.innerHTML = `
+            ${mediaHtml}
+            <div class="question-title">第 ${index + 1} 題：${q.question}</div>
+            <div class="options" id="options-box">
+                ${optionsHtml}
+            </div>
+            <div style="overflow: hidden;">
+                <button class="next-btn" id="next-btn" onclick="nextSlide()">下一題 ➡️</button>
+            </div>
+        `;
+        
+        quizContainer.appendChild(card);
+        updateProgress();
+    }
+
+    // 檢查答案邏輯
+    window.checkAnswer = function(qIndex, selectedOptIndex, btnElement) {
+        const correctIndex = quizData[qIndex].answerIndex;
+        const optionsBox = document.getElementById('options-box');
+        const allButtons = optionsBox.querySelectorAll('.option-btn');
+        const nextBtn = document.getElementById('next-btn');
+
+        // 鎖定該題所有按鈕，防止重複點擊
+        allButtons.forEach(btn => btn.classList.add('disabled'));
+
+        // 判斷對錯並給予紅綠燈回饋
+        if (selectedOptIndex === correctIndex) {
+            btnElement.classList.add('correct'); 
+            correctCount++;
+        } else {
+            btnElement.classList.add('wrong'); 
+            allButtons[correctIndex].classList.add('correct'); 
+        }
+
+        if (currentQuestionIndex === quizData.length - 1) {
+            nextBtn.innerText = "查看結算結果 🏆";
+        }
+        nextBtn.style.display = 'inline-block';
+    };
+
+    // 切換下一題
+    window.nextSlide = function() {
+        currentQuestionIndex++;
+        if (currentQuestionIndex < quizData.length) {
+            showQuestion(currentQuestionIndex);
+        } else {
+            showResult();
+        }
+    };
+
+    // 更新進度條
+    function updateProgress() {
+        progressTracker.innerText = `目前進度: ${currentQuestionIndex + 1} / 10 題`;
+    }
+
+    // 結算與獎金邏輯
+    function showResult() {
+        quizContainer.style.display = 'none'; 
+        progressTracker.style.display = 'none'; 
+
+        const resultSection = document.getElementById('result-section');
+        const scoreText = document.getElementById('score-text');
+        const rewardText = document.getElementById('reward-text');
+        
+        let reward = 0;
+        if (correctCount <= 5) {
+            reward = 500;
+        } else if (correctCount >= 6 && correctCount <= 7) {
+            reward = 1000;
+        } else if (correctCount >= 8) {
+            reward = 1500;
+        }
+
+        scoreText.innerHTML = `您在 10 道問題中，總共答對了 <b>${correctCount}</b> 題！`;
+        rewardText.innerText = `$${reward} 元`;
+        resultSection.style.display = 'block';
+    }
+
+    // 初始化啟動第一題
+    showQuestion(0);
+</script>
+
+</body>
+</html>
